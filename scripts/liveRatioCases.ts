@@ -70,4 +70,19 @@ export const liveRatioCases: LiveRatioCase[] = [
       cash_ratio: 21.637390889548318,
     },
   },
+  {
+    sampleId: 'la-leche-league-canada-2025',
+    expectedFields: {
+      cash_and_cash_equivalents: 16081,
+      marketable_securities: 237322,
+      accounts_receivable: 4301,
+      total_current_assets: 258092,
+      total_current_liabilities: 12461,
+    },
+    expectedRatios: {
+      current_ratio: 20.711981381911563,
+      quick_ratio: 20.680844234010113,
+      cash_ratio: 20.335687344514888,
+    },
+  },
 ]

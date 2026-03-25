@@ -307,4 +307,30 @@ describe('reconcileExtractionWithTextPages', () => {
     expect(matches.total_current_assets?.value).toBe(450)
     expect(matches.total_current_liabilities?.value).toBe(100)
   })
+
+  it('handles split current headers, portfolio investments, and implied liability subtotals', () => {
+    const matches = extractFieldsFromTextPages([
+      buildPage(4, [
+        'statement of',
+        'financial position',
+        'assets',
+        'cu rren t',
+        'Cash 16,081 14,947',
+        'Portfolio investments 237,322 265,756',
+        'Government remittances recoverable 4,301 2,809',
+        'Prepaid expenses 388 387',
+        '258,092 283,899',
+        'liabilities',
+        'cu rren t',
+        'Accounts payable and accrued liabilities 12,461 10,927',
+        'net assets',
+      ]),
+    ])
+
+    expect(matches.cash_and_cash_equivalents?.value).toBe(16081)
+    expect(matches.marketable_securities?.value).toBe(237322)
+    expect(matches.accounts_receivable?.value).toBe(4301)
+    expect(matches.total_current_assets?.value).toBe(258092)
+    expect(matches.total_current_liabilities?.value).toBe(12461)
+  })
 })

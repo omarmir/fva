@@ -40,6 +40,14 @@ const LIABILITY_SECTION_PATTERNS = [
   /^liabilities:?$/i,
   /^liabilities and (?:equity|net assets|fund balances?|shareholders?'? equity|stockholders?'? equity|members?'? equity|partners?'? capital)s?:?$/i,
 ]
+const EQUITY_SECTION_PATTERNS = [
+  /^net assets?:?$/i,
+  /^fund balances?:?$/i,
+  /^equity:?$/i,
+  /^members?'? equity:?$/i,
+  /^shareholders?'? equity:?$/i,
+  /^stockholders?'? equity:?$/i,
+]
 const NON_TARGET_PAGE_PATTERNS = [
   /^notes? to\b/i,
   /^statement of cash flows?$/i,
@@ -138,7 +146,11 @@ function isNumericOnlyLine(line: string) {
 }
 
 function normalizeLine(line: string) {
-  return line.toLowerCase().replace(/\s+/g, ' ').trim()
+  return line
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\bc\s*u\s*r\s*r\s*e\s*n\s*t\b/g, 'current')
 }
 
 function matchesAnyPattern(line: string, patterns: RegExp[]) {
@@ -466,6 +478,10 @@ function currentSectionFieldMatch(pageNumber: number, line: string): FieldMatch 
     return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 110)
   }
 
+  if (/portfolio investments?/.test(normalized)) {
+    return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 108)
+  }
+
   if (/guaranteed investment certificates?\b|\bgics?\b/.test(normalized)) {
     return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 105)
   }
@@ -496,7 +512,8 @@ function currentSectionFieldMatch(pageNumber: number, line: string): FieldMatch 
 
   if (
     /(gst|hst|sales tax|charity rebate).*(receivable|recoverable)/.test(normalized) ||
-    /(receivable|recoverable).*(gst|hst|sales tax|charity rebate)/.test(normalized)
+    /(receivable|recoverable).*(gst|hst|sales tax|charity rebate)/.test(normalized) ||
+    /government remittances? recoverable/.test(normalized)
   ) {
     return buildFieldMatch('accounts_receivable', line, value, pageNumber, line, 90)
   }
@@ -535,6 +552,9 @@ function generalFieldMatch(
       if (/^(short[ -]term investments?|marketable securities)\b/.test(normalized)) {
         return buildFieldMatch(fieldKey, line, value, pageNumber, line, 100 + bonus)
       }
+      if (/^portfolio investments?\b/.test(normalized)) {
+        return buildFieldMatch(fieldKey, line, value, pageNumber, line, 98 + bonus)
+      }
       if (/^(guaranteed investment certificates?\b|\bgics?\b)/.test(normalized)) {
         return buildFieldMatch(fieldKey, line, value, pageNumber, line, 98 + bonus)
       }
@@ -557,7 +577,8 @@ function generalFieldMatch(
       }
       if (
         /(gst|hst|sales tax|charity rebate).*(receivable|recoverable)/.test(normalized) ||
-        /(receivable|recoverable).*(gst|hst|sales tax|charity rebate)/.test(normalized)
+        /(receivable|recoverable).*(gst|hst|sales tax|charity rebate)/.test(normalized) ||
+        /government remittances? recoverable/.test(normalized)
       ) {
         return buildFieldMatch(fieldKey, line, value, pageNumber, line, 80 + bonus)
       }
@@ -578,35 +599,76 @@ function extractStatementPageFields(
   const lines = pageLines(page)
   const matches: Partial<Record<LiquidityFieldKey, FieldMatch>> = {}
   let section: 'none' | 'assets' | 'current_assets' | 'liabilities' | 'current_liabilities' = 'none'
+  const currentAssetValues: number[] = []
+  const currentLiabilityValues: number[] = []
+
+  function applyImpliedSectionTotals(nextSection: typeof section) {
+    if (section === 'current_assets' && !matches.total_current_assets && currentAssetValues.length > 0) {
+      matches.total_current_assets = buildFieldMatch(
+        'total_current_assets',
+        'Implied current assets total',
+        currentAssetValues.reduce((sum, value) => sum + value, 0),
+        page.pageNumber,
+        'Summed current-asset rows from PDF text layer.',
+        125,
+      )
+    }
+
+    if (section === 'current_liabilities' && !matches.total_current_liabilities && currentLiabilityValues.length > 0) {
+      matches.total_current_liabilities = buildFieldMatch(
+        'total_current_liabilities',
+        'Implied current liabilities total',
+        currentLiabilityValues.reduce((sum, value) => sum + value, 0),
+        page.pageNumber,
+        'Summed current-liability rows from PDF text layer.',
+        125,
+      )
+    }
+
+    if (nextSection !== 'current_assets') currentAssetValues.length = 0
+    if (nextSection !== 'current_liabilities') currentLiabilityValues.length = 0
+  }
 
   for (const line of lines) {
     const normalized = normalizeLine(line)
     if (!normalized) continue
 
     if (matchesAnyPattern(normalized, CURRENT_ASSET_SECTION_PATTERNS)) {
+      applyImpliedSectionTotals('current_assets')
       section = 'current_assets'
       continue
     }
 
     if (matchesAnyPattern(normalized, CURRENT_LIABILITY_SECTION_PATTERNS)) {
+      applyImpliedSectionTotals('current_liabilities')
       section = 'current_liabilities'
       continue
     }
 
     if (matchesAnyPattern(normalized, ASSET_SECTION_PATTERNS)) {
+      applyImpliedSectionTotals('assets')
       section = 'assets'
       continue
     }
 
     if (matchesAnyPattern(normalized, LIABILITY_SECTION_PATTERNS)) {
+      applyImpliedSectionTotals('liabilities')
       section = 'liabilities'
+      continue
+    }
+
+    if (matchesAnyPattern(normalized, EQUITY_SECTION_PATTERNS)) {
+      applyImpliedSectionTotals('none')
+      section = 'none'
       continue
     }
 
     if (/^current:?$/.test(normalized)) {
       if (section === 'assets') {
+        applyImpliedSectionTotals('current_assets')
         section = 'current_assets'
       } else if (section === 'liabilities') {
+        applyImpliedSectionTotals('current_liabilities')
         section = 'current_liabilities'
       }
       continue
@@ -646,6 +708,8 @@ function extractStatementPageFields(
       }
 
       const candidate = currentSectionFieldMatch(page.pageNumber, line)
+      const value = extractNumbers(line)[0]
+      if (value !== undefined) currentAssetValues.push(value)
       if (!candidate) continue
 
       matches[candidate.fieldKey] = chooseBetterFieldMatch(matches[candidate.fieldKey], candidate)
@@ -683,8 +747,13 @@ function extractStatementPageFields(
         }
         section = 'liabilities'
       }
+
+      const value = extractNumbers(line)[0]
+      if (value !== undefined) currentLiabilityValues.push(value)
     }
   }
+
+  applyImpliedSectionTotals('none')
 
   const columnMatches = extractFieldsFromColumnLayout(page)
   for (const [fieldKey, match] of Object.entries(columnMatches) as Array<[LiquidityFieldKey, FieldMatch | undefined]>) {

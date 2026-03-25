@@ -72,6 +72,16 @@ export const sampleReports: SampleReport[] = [
     pdfPath: '/reports/threads-of-life-2024-audited-financial-statements.pdf',
   },
   {
+    id: 'la-leche-league-canada-2025',
+    label: 'La Leche League Canada 2025 Financial Statements',
+    companyName: 'La Leche League Canada',
+    sector: 'Maternal and Child Health',
+    isFinancialInstitution: false,
+    fiscalPeriodLabel: 'FY 2025',
+    periodEndDate: '2025-03-31',
+    pdfPath: '/reports/la-leche-league-canada-2025-financial-statements.pdf',
+  },
+  {
     id: 'canadahelps-2025',
     label: 'CanadaHelps 2025 Financial Statements',
     companyName: 'CanadaHelps CanaDon',
