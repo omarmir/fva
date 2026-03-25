@@ -135,6 +135,28 @@ describe('reconcileExtractionWithTextPages', () => {
     expect(matches.total_current_liabilities?.value).toBe(100)
   })
 
+  it('treats guaranteed investment certificates as marketable securities when they are current', () => {
+    const matches = extractFieldsFromTextPages([
+      buildPage(9, [
+        'Statement of Financial Position',
+        'Assets',
+        'Current',
+        'Cash - unrestricted 120',
+        'Guaranteed investment certificate - due January 25, 2025 50',
+        'Accounts receivable 30',
+        '200',
+        'Liabilities and Fund Balances',
+        'Current',
+        'Accounts payable 100',
+        '100',
+      ]),
+    ])
+
+    expect(matches.marketable_securities?.value).toBe(50)
+    expect(matches.total_current_assets?.value).toBe(200)
+    expect(matches.total_current_liabilities?.value).toBe(100)
+  })
+
   it('replaces a grand-total OCR mistake with the current-assets subtotal from page text', () => {
     const result = buildResult()
     result.fields.find((field) => field.key === 'total_current_assets')!.value = 13299787

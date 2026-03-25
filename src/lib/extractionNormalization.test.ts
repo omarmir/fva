@@ -153,4 +153,26 @@ describe('normalizeModelContent', () => {
     expect(result.fields.find((field) => field.key === 'total_current_assets')?.value).toBe(250)
     expect(result.fields.find((field) => field.key === 'total_current_liabilities')?.value).toBe(100)
   })
+
+  it('treats guaranteed investment certificates as marketable securities', () => {
+    const result = normalizeModelContent(
+      `<table>
+        <tr><td>Statement of Financial Position</td><td>As at December 31, 2024</td></tr>
+        <tr><td>Guaranteed investment certificate - due January 25, 2025</td><td>500,000</td></tr>
+      </table>`,
+      {
+        modelId: 'vision-html-model',
+        source: {
+          kind: 'upload',
+          fileName: 'gic.pdf',
+          fileSize: 1,
+          lastModified: 1,
+        },
+        fallbackPageNumber: 3,
+        sampleMetadata: null,
+      },
+    )
+
+    expect(result.fields.find((field) => field.key === 'marketable_securities')?.value).toBe(500000)
+  })
 })

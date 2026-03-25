@@ -13,7 +13,11 @@ type FieldMatch = {
   priority: number
 }
 
-const NUMBER_PATTERN = /\(?\$?[\d,]+(?:\.\d+)?\)?|—|-/g
+const NUMBER_PATTERN = /\(?\$?[\d,]+(?:\.\d+)?\)?|(?:^|\s)(?:—|-)(?=$|\s)/g
+const NOTE_REFERENCE_PATTERN = /\((?:note|notes)[^)]+\)|\b(?:note|notes)\s+\d+[a-z]?\b/gi
+const MONTH_DATE_PATTERN =
+  /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},\s+\d{4}\b/gi
+const PERCENTAGE_PATTERN = /\b\d+(?:\.\d+)?%/g
 const Y_TOLERANCE = 2
 const STATEMENT_TITLE_PATTERNS = [
   /balance sheets?/i,
@@ -73,7 +77,7 @@ export function buildTextLines(items: TextItemLike[]) {
 }
 
 function parseNumberToken(token: string) {
-  const cleaned = token.replace(/\$/g, '').replace(/,/g, '').replace(/\s+/g, '')
+  const cleaned = token.trim().replace(/\$/g, '').replace(/,/g, '').replace(/\s+/g, '')
   if (cleaned === '' || cleaned === '-' || cleaned === '—') return null
 
   const negativeMatch = cleaned.match(/^\((.+)\)$/)
@@ -83,8 +87,27 @@ function parseNumberToken(token: string) {
 }
 
 function extractNumbers(line: string) {
-  const matches = line.match(NUMBER_PATTERN) ?? []
+  const sanitized = line
+    .replace(NOTE_REFERENCE_PATTERN, ' ')
+    .replace(MONTH_DATE_PATTERN, ' ')
+    .replace(PERCENTAGE_PATTERN, ' ')
+  const matches = sanitized.match(NUMBER_PATTERN) ?? []
   return matches.map(parseNumberToken).filter((value): value is number => value !== null)
+}
+
+function lineEndsWithAmount(line: string) {
+  const sanitized = line
+    .replace(NOTE_REFERENCE_PATTERN, ' ')
+    .replace(MONTH_DATE_PATTERN, ' ')
+    .replace(PERCENTAGE_PATTERN, ' ')
+    .trim()
+  return /(?:\(?\$?[\d,]+(?:\.\d+)?\)?|—|-)\s*$/.test(sanitized)
+}
+
+function shouldRejectFieldLine(line: string, normalized: string) {
+  if (/cash flows|beginning of year|end of year|consist of/i.test(normalized)) return true
+  if (line.includes('%') && !lineEndsWithAmount(line)) return true
+  return false
 }
 
 function isNumericOnlyLine(line: string) {
@@ -163,7 +186,7 @@ function currentSectionFieldMatch(pageNumber: number, line: string): FieldMatch 
   if (value === undefined) return null
 
   const normalized = normalizeLine(line)
-  if (line.includes('%') || /cash flows|beginning of year|end of year|consist of/i.test(normalized)) return null
+  if (shouldRejectFieldLine(line, normalized)) return null
 
   if (/cash and cash equivalents/.test(normalized)) {
     return buildFieldMatch('cash_and_cash_equivalents', line, value, pageNumber, line, 120)
@@ -177,8 +200,16 @@ function currentSectionFieldMatch(pageNumber: number, line: string): FieldMatch 
     return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 110)
   }
 
+  if (/guaranteed investment certificates?\b|\bgics?\b/.test(normalized)) {
+    return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 105)
+  }
+
   if (/short[ -]term deposits?/.test(normalized)) {
     return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 100)
+  }
+
+  if (/term deposits?/.test(normalized)) {
+    return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 95)
   }
 
   if (/^investments?\b/.test(normalized) && !/long[- ]term/.test(normalized)) {
@@ -221,7 +252,7 @@ function generalFieldMatch(
   if (value === undefined) return null
 
   const normalized = normalizeLine(line)
-  if (line.includes('%') || /cash flows|beginning of year|end of year|consist of/i.test(normalized)) return null
+  if (shouldRejectFieldLine(line, normalized)) return null
 
   const bonus = Math.round(pageScore / 2)
 
@@ -238,8 +269,14 @@ function generalFieldMatch(
       if (/^(short[ -]term investments?|marketable securities)\b/.test(normalized)) {
         return buildFieldMatch(fieldKey, line, value, pageNumber, line, 100 + bonus)
       }
+      if (/^(guaranteed investment certificates?\b|\bgics?\b)/.test(normalized)) {
+        return buildFieldMatch(fieldKey, line, value, pageNumber, line, 98 + bonus)
+      }
       if (/^(restricted )?short[ -]term deposits?\b/.test(normalized)) {
         return buildFieldMatch(fieldKey, line, value, pageNumber, line, 95 + bonus)
+      }
+      if (/^(restricted )?term deposits?\b/.test(normalized)) {
+        return buildFieldMatch(fieldKey, line, value, pageNumber, line, 90 + bonus)
       }
       return null
     case 'accounts_receivable':

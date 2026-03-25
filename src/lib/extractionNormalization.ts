@@ -14,7 +14,15 @@ const FIELD_MATCHERS: Array<{
   { key: 'cash_and_cash_equivalents', patterns: [/cash and cash equivalents/i, /^cash\b/i] },
   {
     key: 'marketable_securities',
-    patterns: [/short term investments?/i, /short-term investments?/i, /marketable securities/i, /short-term deposits?/i],
+    patterns: [
+      /short term investments?/i,
+      /short-term investments?/i,
+      /marketable securities/i,
+      /short-term deposits?/i,
+      /term deposits?/i,
+      /guaranteed investment certificates?/i,
+      /\bgics?\b/i,
+    ],
   },
   { key: 'accounts_receivable', patterns: [/accounts receivable/i, /trade receivables?/i, /grants? receivable/i] },
   { key: 'inventory', patterns: [/inventor/i, /materials? and supplies/i] },

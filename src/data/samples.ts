@@ -32,6 +32,16 @@ export const sampleReports: SampleReport[] = [
     pdfPath: '/reports/rbc-2024-annual-report.pdf',
   },
   {
+    id: 'capacity-canada-2024',
+    label: 'Capacity Canada 2024 Financial Statements',
+    companyName: 'Capacity Canada',
+    sector: 'Nonprofit Capacity Building',
+    isFinancialInstitution: false,
+    fiscalPeriodLabel: 'FY 2024',
+    periodEndDate: '2024-12-31',
+    pdfPath: '/reports/capacity-canada-2024-financial-statements.pdf',
+  },
+  {
     id: 'canadahelps-2025',
     label: 'CanadaHelps 2025 Financial Statements',
     companyName: 'CanadaHelps CanaDon',
