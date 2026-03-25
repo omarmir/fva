@@ -25,6 +25,7 @@ export function buildPrompt(pages: RankedPdfPage[]) {
 Rules:
 - Focus on the consolidated balance sheet or statement of financial position.
 - Use the current/latest period shown on the statement page.
+- On multi-column, fund-accounting, or comparative statements, use the latest aggregated total column for the current period, not an individual fund column or the prior-year comparative column.
 - Extract these line items when visible: cash and cash equivalents, short term investments or marketable securities, accounts receivable, inventory, total current assets, total current liabilities.
 - Prefer consolidated statements over notes.
 - Only use rows or subtotals that appear on the face of the statement itself.

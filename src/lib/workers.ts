@@ -20,6 +20,7 @@ function clonePages(pages: RenderedPdfPage[]) {
   return pages.map((page) => ({
     pageNumber: page.pageNumber,
     textPreview: page.textPreview,
+    ...(page.textLines ? { textLines: [...page.textLines] } : {}),
     thumbnailDataUrl: page.thumbnailDataUrl,
     extractionDataUrl: page.extractionDataUrl,
     width: page.width,

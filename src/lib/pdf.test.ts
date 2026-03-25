@@ -32,7 +32,8 @@ describe('rankCandidatePages', () => {
     ])
 
     expect(ranked[0].pageNumber).toBe(42)
-    expect(ranked[0].score).toBeGreaterThan(ranked[1].score)
+    expect(ranked).toHaveLength(1)
+    expect(ranked[0].score).toBeGreaterThan(0)
   })
 
   it('prefers a structured statement page over a note page with overlapping keywords', () => {
@@ -75,7 +76,43 @@ describe('rankCandidatePages', () => {
     ])
 
     expect(ranked[0].pageNumber).toBe(62)
+    expect(ranked).toHaveLength(1)
     expect(ranked[0].reasons).toContain('Statement title match.')
-    expect(ranked[1].reasons).toContain('Looks like a note or non-balance-sheet statement.')
+  })
+
+  it('does not rank an auditor report above a garbled statement page that still exposes section structure', () => {
+    const ranked = rankCandidatePages([
+      {
+        pageNumber: 2,
+        textPreview:
+          "INDEPENDENT AUDITOR'S REPORT the statement of financial position as at March 31, 2025 100 200 300",
+        textLines: [
+          "INDEPENDENT AUDITOR'S REPORT",
+          'We audited the statement of financial position as at March 31, 2025.',
+          '100 200 300',
+        ],
+        thumbnailDataUrl: 'a',
+        extractionDataUrl: 'a',
+        width: 100,
+        height: 100,
+      },
+      {
+        pageNumber: 5,
+        textPreview:
+          'HUNTINGTON SOCIETY OF CANADA Statement of Financial Position March 31, 2025 Assets Current assets: Liabilities and Fund Balances Current liabilities: 802,313 2,687,643 3,771,654 261,613',
+        textLines: [
+          '802,313 2,687,643 3,771,654 261,613',
+          'HUNTINGTON SOCIETY OF CANADA Statement of Financial Position March 31, 2025 Assets Current assets: Liabilities and Fund Balances Current liabilities:',
+        ],
+        thumbnailDataUrl: 'b',
+        extractionDataUrl: 'b',
+        width: 100,
+        height: 100,
+      },
+    ])
+
+    expect(ranked[0].pageNumber).toBe(5)
+    expect(ranked).toHaveLength(1)
+    expect(ranked[0].reasons).toContain('Statement title match.')
   })
 })

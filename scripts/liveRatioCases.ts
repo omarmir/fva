@@ -40,4 +40,19 @@ export const liveRatioCases: LiveRatioCase[] = [
       cash_ratio: 0.9792794858480068,
     },
   },
+  {
+    sampleId: 'huntington-society-2025',
+    expectedFields: {
+      cash_and_cash_equivalents: 802313,
+      marketable_securities: 2687643,
+      accounts_receivable: 137008,
+      total_current_assets: 3771654,
+      total_current_liabilities: 261613,
+    },
+    expectedRatios: {
+      current_ratio: 14.416921177464422,
+      quick_ratio: 13.863852331497288,
+      cash_ratio: 13.34014746973583,
+    },
+  },
 ]

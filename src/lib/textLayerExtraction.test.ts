@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ExtractionResult, RenderedPdfPage } from '../types/finance'
+import type { ExtractionResult, PositionedTextItem, RenderedPdfPage } from '../types/finance'
 import { buildDefaultFields } from './ratios'
 import { extractFieldsFromTextPages, reconcileExtractionWithTextPages } from './textLayerExtraction'
 
@@ -21,11 +21,12 @@ function buildResult(): ExtractionResult {
   }
 }
 
-function buildPage(pageNumber: number, textLines: string[]): RenderedPdfPage {
+function buildPage(pageNumber: number, textLines: string[], textItems?: PositionedTextItem[]): RenderedPdfPage {
   return {
     pageNumber,
     textPreview: textLines.join(' '),
     textLines,
+    textItems,
     thumbnailDataUrl: 'thumb',
     extractionDataUrl: 'image',
     width: 100,
@@ -229,5 +230,81 @@ describe('reconcileExtractionWithTextPages', () => {
     expect(reconciled.extractionWarnings).toContain(
       'Cleared OCR value for marketable securities because the PDF text layer did not confirm a statement row.',
     )
+  })
+
+  it('keeps OCR current totals and receivables when the statement page is present but the text layer is too garbled to isolate rows', () => {
+    const result = buildResult()
+    result.fields.find((item) => item.key === 'accounts_receivable')!.value = 137008
+    result.fields.find((item) => item.key === 'accounts_receivable')!.status = 'extracted'
+    result.fields.find((item) => item.key === 'marketable_securities')!.value = 2687643
+    result.fields.find((item) => item.key === 'marketable_securities')!.status = 'extracted'
+    result.fields.find((item) => item.key === 'total_current_assets')!.value = 3771654
+    result.fields.find((item) => item.key === 'total_current_assets')!.status = 'extracted'
+    result.fields.find((item) => item.key === 'total_current_liabilities')!.value = 261613
+    result.fields.find((item) => item.key === 'total_current_liabilities')!.status = 'extracted'
+
+    const reconciled = reconcileExtractionWithTextPages(result, [
+      buildPage(2, [
+        "INDEPENDENT AUDITOR'S REPORT",
+        'We audited the statement of financial position as at March 31, 2025.',
+      ]),
+      buildPage(5, [
+        'HUNTINGTON SOCIETY OF CANADA Statement of Financial Position March 31, 2025 Assets Current assets: Liabilities and Fund Balances Current liabilities:',
+      ]),
+      buildPage(8, [
+        'Statement of Cash Flows',
+        'Accounts receivable 93,767 (65,164)',
+        'Cash, end of year 802,313 572,499',
+      ]),
+    ])
+
+    expect(reconciled.fields.find((item) => item.key === 'accounts_receivable')?.value).toBe(137008)
+    expect(reconciled.fields.find((item) => item.key === 'marketable_securities')?.value).toBe(2687643)
+    expect(reconciled.fields.find((item) => item.key === 'total_current_assets')?.value).toBe(3771654)
+    expect(reconciled.fields.find((item) => item.key === 'total_current_liabilities')?.value).toBe(261613)
+  })
+
+  it('parses current-period column values from x-aligned statement text items when text lines collapse a fund table', () => {
+    const matches = extractFieldsFromTextPages([
+      buildPage(
+        5,
+        ['Statement of Financial Position'],
+        [
+          { str: 'Assets', x: 10, y: 100 },
+          { str: 'Current assets:', x: 20, y: 100 },
+          { str: 'Capital assets', x: 80, y: 100 },
+          { str: 'Liabilities and Fund Balances', x: 120, y: 100 },
+          { str: 'Current liabilities:', x: 130, y: 100 },
+          { str: 'Fund balances:', x: 170, y: 100 },
+          { str: 'Cash', x: 20, y: 112 },
+          { str: 'Investments', x: 30, y: 112 },
+          { str: 'Accounts receivable', x: 40, y: 112 },
+          { str: 'Accounts payable', x: 130, y: 112 },
+          { str: 'Deferred revenue', x: 140, y: 112 },
+          { str: '2025', x: 0, y: 200 },
+          { str: '100', x: 20, y: 190 },
+          { str: '250', x: 30, y: 190 },
+          { str: '50', x: 40, y: 190 },
+          { str: '450', x: 60, y: 188 },
+          { str: '80', x: 130, y: 190 },
+          { str: '20', x: 140, y: 190 },
+          { str: '100', x: 150, y: 188 },
+          { str: '2024', x: 0, y: 260 },
+          { str: '90', x: 20, y: 250 },
+          { str: '200', x: 30, y: 250 },
+          { str: '40', x: 40, y: 250 },
+          { str: '330', x: 60, y: 248 },
+          { str: '70', x: 130, y: 250 },
+          { str: '15', x: 140, y: 250 },
+          { str: '85', x: 150, y: 248 },
+        ],
+      ),
+    ])
+
+    expect(matches.cash_and_cash_equivalents?.value).toBe(100)
+    expect(matches.marketable_securities?.value).toBe(250)
+    expect(matches.accounts_receivable?.value).toBe(50)
+    expect(matches.total_current_assets?.value).toBe(450)
+    expect(matches.total_current_liabilities?.value).toBe(100)
   })
 })

@@ -1,12 +1,22 @@
 import type { RankedPdfPage, RenderedPdfPage } from '../types/finance'
 
-const STATEMENT_TITLE_PATTERNS = [
-  /balance sheets?/i,
-  /statements? of financial position/i,
-  /statement of net assets/i,
-  /statement of financial condition/i,
+const EXACT_STATEMENT_TITLE_PATTERNS = [
+  /^(?:consolidated|combined|comparative|condensed|non[- ]consolidated)\s+balance sheets?$/i,
+  /^(?:consolidated|combined|comparative|condensed|non[- ]consolidated)\s+statements? of financial position$/i,
+  /^balance sheets?$/i,
+  /^statements? of financial position$/i,
+  /^statement of net assets$/i,
+  /^statement of financial condition$/i,
 ]
-const NON_TARGET_PAGE_PATTERNS = [/^notes? to\b/i, /cash flows?/i, /statement of operations/i, /income statement/i]
+const NON_TARGET_PAGE_PATTERNS = [
+  /^notes? to\b/i,
+  /^statement of cash flows?$/i,
+  /cash flows?/i,
+  /^statement of operations$/i,
+  /income statement/i,
+  /independent auditor'?s report/i,
+  /auditor'?s report/i,
+]
 const ASSET_SECTION_PATTERNS = [/^assets?:?$/i]
 const LIABILITY_SECTION_PATTERNS = [
   /^liabilities:?$/i,
@@ -33,6 +43,43 @@ function matchesAnyPattern(line: string, patterns: RegExp[]) {
   return patterns.some((pattern) => pattern.test(line))
 }
 
+function normalizeLine(line: string) {
+  return line.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function isStatementTitleLine(line: string) {
+  const normalized = normalizeLine(line)
+  if (matchesAnyPattern(normalized, EXACT_STATEMENT_TITLE_PATTERNS)) return true
+
+  return (
+    /\b(?:balance sheets?|statements? of financial position|statement of net assets|statement of financial condition)\b/.test(
+      normalized,
+    ) && /\bassets?\b/.test(normalized) && /\bliabilities?\b/.test(normalized)
+  )
+}
+
+function hasAssetSectionLine(line: string) {
+  const normalized = normalizeLine(line)
+  return matchesAnyPattern(normalized, ASSET_SECTION_PATTERNS) || /\bassets?\b.*\bcurrent assets?\b/.test(normalized)
+}
+
+function hasLiabilitySectionLine(line: string) {
+  const normalized = normalizeLine(line)
+  return (
+    matchesAnyPattern(normalized, LIABILITY_SECTION_PATTERNS) ||
+    /\bliabilities\b.*\bcurrent liabilities\b/.test(normalized)
+  )
+}
+
+function hasCurrentSectionLine(line: string) {
+  const normalized = normalizeLine(line)
+  return matchesAnyPattern(normalized, CURRENT_SECTION_PATTERNS) || /\bcurrent (?:assets|liabilities)\b/.test(normalized)
+}
+
+function isNonTargetPageLine(line: string) {
+  return matchesAnyPattern(normalizeLine(line), NON_TARGET_PAGE_PATTERNS)
+}
+
 function estimateTableDensity(lines: string[]) {
   const numericMatches = lines.flatMap((line) => line.match(/\b\d[\d,().-]*\b/g) ?? [])
 
@@ -46,7 +93,8 @@ function scorePage(page: RenderedPdfPage) {
   const lines = pageLines(page)
   const text = lines.join(' ')
   const normalizedLines = lines.map((line) => line.trim())
-  const hasStatementTitle = normalizedLines.some((line) => matchesAnyPattern(line, STATEMENT_TITLE_PATTERNS))
+  const hasStatementTitle = normalizedLines.some((line) => isStatementTitleLine(line))
+  const hasNonTargetLine = normalizedLines.some((line) => isNonTargetPageLine(line))
   let score = 0
 
   if (hasStatementTitle) {
@@ -54,17 +102,17 @@ function scorePage(page: RenderedPdfPage) {
     reasons.push('Statement title match.')
   }
 
-  if (normalizedLines.some((line) => matchesAnyPattern(line, ASSET_SECTION_PATTERNS))) {
+  if (normalizedLines.some((line) => hasAssetSectionLine(line))) {
     score += 6
     reasons.push('Found assets section header.')
   }
 
-  if (normalizedLines.some((line) => matchesAnyPattern(line, LIABILITY_SECTION_PATTERNS))) {
+  if (normalizedLines.some((line) => hasLiabilitySectionLine(line))) {
     score += 6
     reasons.push('Found liabilities section header.')
   }
 
-  if (normalizedLines.some((line) => matchesAnyPattern(line, CURRENT_SECTION_PATTERNS))) {
+  if (normalizedLines.some((line) => hasCurrentSectionLine(line))) {
     score += 4
     reasons.push('Found current-section header.')
   }
@@ -76,8 +124,8 @@ function scorePage(page: RenderedPdfPage) {
     }
   }
 
-  if (!hasStatementTitle && normalizedLines.some((line) => matchesAnyPattern(line, NON_TARGET_PAGE_PATTERNS))) {
-    score -= 8
+  if (hasNonTargetLine) {
+    score -= 35
     reasons.push('Looks like a note or non-balance-sheet statement.')
   }
 
@@ -99,11 +147,13 @@ function scorePage(page: RenderedPdfPage) {
 }
 
 export function rankCandidatePages(pages: RenderedPdfPage[], maxPages = 4): RankedPdfPage[] {
-  return pages
+  const ranked = pages
     .map((page) => {
       const { score, reasons } = scorePage(page)
       return { ...page, score, reasons }
     })
     .sort((left, right) => right.score - left.score || left.pageNumber - right.pageNumber)
-    .slice(0, maxPages)
+
+  const positiveOnly = ranked.filter((page) => page.score > 0)
+  return (positiveOnly.length > 0 ? positiveOnly : ranked).slice(0, maxPages)
 }

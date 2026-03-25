@@ -1,4 +1,4 @@
-import type { RenderedPdfPage } from '../types/finance'
+import type { PositionedTextItem, RenderedPdfPage } from '../types/finance'
 import { rankCandidatePages } from './pageRanking'
 import { buildTextLines } from './textLayerExtraction'
 
@@ -75,23 +75,25 @@ export async function renderPdfPagesWithCallbacks(
     }).promise
 
     const text = await page.getTextContent()
-    const textItems = text.items.flatMap((item) =>
+    const textItems: PositionedTextItem[] = text.items.flatMap((item) =>
       'str' in item && 'transform' in item
         ? [
             {
               str: item.str,
-              transform: Array.from(item.transform),
+              x: item.transform[4] ?? 0,
+              y: item.transform[5] ?? 0,
             },
           ]
         : [],
     )
-    const textLines = buildTextLines(textItems)
+    const textLines = buildTextLines(textItems.map((item) => ({ str: item.str, transform: [0, 0, 0, 0, item.x, item.y] })))
     const textPreview = textLines.join(' ').replace(/\s+/g, ' ').trim()
 
     pages.push({
       pageNumber,
       textPreview,
       textLines,
+      textItems,
       thumbnailDataUrl: thumbnailCanvas.toDataURL('image/jpeg', 0.82),
       extractionDataUrl: extractionCanvas.toDataURL('image/jpeg', 0.9),
       width: extractionCanvas.width,

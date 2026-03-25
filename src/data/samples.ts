@@ -52,6 +52,16 @@ export const sampleReports: SampleReport[] = [
     pdfPath: '/reports/growing-chefs-ontario-2025-audited-financial-statements.pdf',
   },
   {
+    id: 'huntington-society-2025',
+    label: 'Huntington Society of Canada 2025 Financial Statements',
+    companyName: 'Huntington Society of Canada',
+    sector: 'Health Support',
+    isFinancialInstitution: false,
+    fiscalPeriodLabel: 'FY 2025',
+    periodEndDate: '2025-03-31',
+    pdfPath: '/reports/huntington-society-of-canada-2025-financial-statements.pdf',
+  },
+  {
     id: 'canadahelps-2025',
     label: 'CanadaHelps 2025 Financial Statements',
     companyName: 'CanadaHelps CanaDon',

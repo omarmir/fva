@@ -26,6 +26,12 @@ export type SourceCitation = {
   fieldKey: LiquidityFieldKey
 }
 
+export type PositionedTextItem = {
+  str: string
+  x: number
+  y: number
+}
+
 export type ExtractedField = {
   key: LiquidityFieldKey
   label: string
@@ -68,6 +74,7 @@ export type RenderedPdfPage = {
   pageNumber: number
   textPreview: string
   textLines?: string[]
+  textItems?: PositionedTextItem[]
   thumbnailDataUrl: string
   extractionDataUrl: string
   width: number
