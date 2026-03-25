@@ -42,6 +42,16 @@ export const sampleReports: SampleReport[] = [
     pdfPath: '/reports/capacity-canada-2024-financial-statements.pdf',
   },
   {
+    id: 'growing-chefs-ontario-2025',
+    label: 'Growing Chefs! Ontario 2025 Audited Financial Statements',
+    companyName: 'Growing Chefs! Ontario Society',
+    sector: 'Food Education',
+    isFinancialInstitution: false,
+    fiscalPeriodLabel: 'FY 2025',
+    periodEndDate: '2025-06-30',
+    pdfPath: '/reports/growing-chefs-ontario-2025-audited-financial-statements.pdf',
+  },
+  {
     id: 'canadahelps-2025',
     label: 'CanadaHelps 2025 Financial Statements',
     companyName: 'CanadaHelps CanaDon',

@@ -24,4 +24,20 @@ export const liveRatioCases: LiveRatioCase[] = [
       cash_ratio: 1.2448821628776892,
     },
   },
+  {
+    sampleId: 'growing-chefs-ontario-2025',
+    expectedFields: {
+      cash_and_cash_equivalents: 290421,
+      marketable_securities: null,
+      accounts_receivable: 162996,
+      inventory: 18528,
+      total_current_assets: 525280,
+      total_current_liabilities: 296566,
+    },
+    expectedRatios: {
+      current_ratio: 1.7712077581381547,
+      quick_ratio: 1.5288907022382876,
+      cash_ratio: 0.9792794858480068,
+    },
+  },
 ]
