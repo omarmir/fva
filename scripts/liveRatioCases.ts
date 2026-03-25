@@ -55,4 +55,19 @@ export const liveRatioCases: LiveRatioCase[] = [
       cash_ratio: 13.34014746973583,
     },
   },
+  {
+    sampleId: 'threads-of-life-2024',
+    expectedFields: {
+      cash_and_cash_equivalents: 192686,
+      marketable_securities: 3300000,
+      accounts_receivable: 11590,
+      total_current_assets: 3636743,
+      total_current_liabilities: 161419,
+    },
+    expectedRatios: {
+      current_ratio: 22.529832299791227,
+      quick_ratio: 21.709191606935985,
+      cash_ratio: 21.637390889548318,
+    },
+  },
 ]

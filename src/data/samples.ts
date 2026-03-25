@@ -62,6 +62,16 @@ export const sampleReports: SampleReport[] = [
     pdfPath: '/reports/huntington-society-of-canada-2025-financial-statements.pdf',
   },
   {
+    id: 'threads-of-life-2024',
+    label: 'Threads of Life 2024 Audited Financial Statements',
+    companyName: 'Association for Workplace Tragedy Family Support (Threads of Life)',
+    sector: 'Family Support',
+    isFinancialInstitution: false,
+    fiscalPeriodLabel: 'FY 2024',
+    periodEndDate: '2024-12-31',
+    pdfPath: '/reports/threads-of-life-2024-audited-financial-statements.pdf',
+  },
+  {
     id: 'canadahelps-2025',
     label: 'CanadaHelps 2025 Financial Statements',
     companyName: 'CanadaHelps CanaDon',
