@@ -1,0 +1,27 @@
+services:
+  vllm-server:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-backend
+    runtime: nvidia
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PYTHONWARNINGS=ignore
+    ipc: host
+    restart: unless-stopped
+    entrypoint: /bin/sh -c
+    command: >
+      "python3 -m vllm.entrypoints.openai.api_server
+      --model ${MODEL_NAME}
+      ${QUANT:+--quantization $QUANT}
+      --gpu-memory-utilization ${GPU_UTIL}
+      --max-model-len ${MAX_LEN}
+      --dtype ${DTYPE:-bfloat16}
+      --trust-remote-code
+      ${REASONING_PARSER:+--reasoning-parser $REASONING_PARSER}
+      ${CHAT_TEMPLATE_KWARGS:+--default-chat-template-kwargs '$CHAT_TEMPLATE_KWARGS'}
+      --max-num-seqs ${MAX_NUM_SEQS:-16}
+      --max-num-batched-tokens ${MAX_NUM_BATCHED_TOKENS:-4096}"
