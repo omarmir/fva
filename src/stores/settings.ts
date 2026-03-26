@@ -17,7 +17,8 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   })()
 
-  const baseUrl = ref(normalizeVllmBaseUrl(persisted?.baseUrl ?? 'http://192.168.2.124:8000'))
+  const defaultBaseUrl = import.meta.env.DEV ? '/api/vllm' : 'http://192.168.2.101:8000'
+  const baseUrl = ref(normalizeVllmBaseUrl(persisted?.baseUrl ?? defaultBaseUrl))
   const modelId = ref('')
 
   watch(baseUrl, (value) => {

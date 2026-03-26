@@ -50,9 +50,9 @@ async function openSample() {
       <div class="stack">
         <label>
           Endpoint
-          <input v-model="settingsStore.baseUrl" class="input" type="url" />
+          <input v-model="settingsStore.baseUrl" class="input" type="text" />
         </label>
-        <p class="muted">Use the vLLM server base URL only. The app adds `/v1` automatically.</p>
+        <p class="muted">Use the vLLM server base URL or a proxy path like `/api/vllm`. The app adds `/v1` automatically.</p>
         <p class="muted">
           Active model:
           {{ settingsStore.modelId || 'Detected from /v1/models when extraction starts.' }}

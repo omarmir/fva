@@ -18,10 +18,18 @@ Vue 3 SPA for extracting liquidity inputs from annual-report PDFs with a local v
 Set the app to the vLLM server base URL, for example:
 
 ```text
-http://192.168.2.124:8000
+http://192.168.2.101:8000
 ```
 
 Do not include `/v1`. The app adds the OpenAI-compatible API path automatically and also normalizes pasted values such as `/v1` or `/v1/chat/completions`.
+
+During `vite` development, the app can also use the built-in same-origin proxy path:
+
+```text
+/api/vllm
+```
+
+The dev server forwards that path to `http://vllm.613868.xyz` by default. Override the proxy target with `VLLM_PROXY_TARGET` if needed.
 
 ## Development
 
