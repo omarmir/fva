@@ -62,6 +62,14 @@ const CURRENT_LIABILITY_SECTION_PATTERNS = [/^current liabilities?:?$/i]
 const CURRENT_ASSET_TOTAL_PATTERNS = [/^total current assets?\b/i, /^current assets? total\b/i]
 const CURRENT_LIABILITY_TOTAL_PATTERNS = [/^total current liabilities?\b/i, /^current liabilities? total\b/i]
 
+function isTrailingAssetsSectionLabel(line: string) {
+  return /(?:^|\s)assets:?$/.test(line) && !/\bnet assets?:?$/.test(line)
+}
+
+function isTrailingLiabilitiesSectionLabel(line: string) {
+  return /(?:^|\s)liabilities:?$/.test(line)
+}
+
 export function buildTextLines(items: TextItemLike[]) {
   const groups: Array<{
     y: number
@@ -105,7 +113,8 @@ export function buildTextLines(items: TextItemLike[]) {
 
 function parseNumberToken(token: string) {
   const cleaned = token.trim().replace(/\$/g, '').replace(/,/g, '').replace(/\s+/g, '')
-  if (cleaned === '' || cleaned === '-' || cleaned === '—') return null
+  if (cleaned === '') return null
+  if (cleaned === '-' || cleaned === '—') return 0
 
   const negativeMatch = cleaned.match(/^\((.+)\)$/)
   const normalized = negativeMatch ? `-${negativeMatch[1]}` : cleaned
@@ -120,6 +129,12 @@ function extractNumbers(line: string) {
     .replace(PERCENTAGE_PATTERN, ' ')
   const matches = sanitized.match(NUMBER_PATTERN) ?? []
   return matches.map(parseNumberToken).filter((value): value is number => value !== null)
+}
+
+function primaryStatementValue(line: string) {
+  const numbers = extractNumbers(line)
+  if (numbers.length === 0) return undefined
+  return numbers.length >= 2 ? numbers[numbers.length - 2] : numbers[0]
 }
 
 function lineEndsWithAmount(line: string) {
@@ -170,13 +185,18 @@ function isStatementTitleLine(line: string) {
 
 function hasAssetSectionLine(line: string) {
   const normalized = normalizeLine(line)
-  return matchesAnyPattern(normalized, ASSET_SECTION_PATTERNS) || /\bassets?\b.*\bcurrent assets?\b/.test(normalized)
+  return (
+    matchesAnyPattern(normalized, ASSET_SECTION_PATTERNS) ||
+    isTrailingAssetsSectionLabel(normalized) ||
+    /\bassets?\b.*\bcurrent assets?\b/.test(normalized)
+  )
 }
 
 function hasLiabilitySectionLine(line: string) {
   const normalized = normalizeLine(line)
   return (
     matchesAnyPattern(normalized, LIABILITY_SECTION_PATTERNS) ||
+    isTrailingLiabilitiesSectionLabel(normalized) ||
     /\bliabilities\b.*\bcurrent liabilities\b/.test(normalized)
   )
 }
@@ -225,6 +245,32 @@ function chooseBetterFieldMatch(current: FieldMatch | undefined, candidate: Fiel
   return current
 }
 
+function combineSummableFieldMatch(current: FieldMatch | undefined, candidate: FieldMatch) {
+  if (!current) return candidate
+
+  if (
+    current.fieldKey === candidate.fieldKey &&
+    current.citation.pageNumber === candidate.citation.pageNumber &&
+    (candidate.fieldKey === 'cash_and_cash_equivalents' || candidate.fieldKey === 'marketable_securities')
+  ) {
+    return {
+      ...candidate,
+      label:
+        candidate.fieldKey === 'cash_and_cash_equivalents'
+          ? 'Summed current cash rows'
+          : 'Summed current marketable-securities rows',
+      value: current.value + candidate.value,
+      citation: {
+        ...candidate.citation,
+        snippet: `${current.citation.snippet} | ${candidate.citation.snippet}`,
+      },
+      priority: Math.max(current.priority, candidate.priority) + 1,
+    }
+  }
+
+  return chooseBetterFieldMatch(current, candidate)
+}
+
 function buildFieldMatch(
   fieldKey: LiquidityFieldKey,
   label: string,
@@ -264,7 +310,9 @@ function fieldKeyFromColumnLabel(label: string, section: 'current_assets' | 'cur
     }
 
     if (
-      /accounts receivable|trade receivables|other receivable|grants? receivable/.test(normalized) ||
+      /accounts? receivable|trade receivables?|amounts? receivable|other receivables?|donations? receivable|grants? receivable/.test(
+        normalized,
+      ) ||
       /(gst|hst|sales tax|charity rebate).*(receivable|recoverable)/.test(normalized) ||
       /(receivable|recoverable).*(gst|hst|sales tax|charity rebate)/.test(normalized)
     ) {
@@ -316,6 +364,13 @@ function nextSectionBoundaryX(
 
 function parseColumnValue(item: PositionedTextItem) {
   return parseNumberToken(item.str)
+}
+
+function isYearHeaderItem(item: PositionedTextItem) {
+  const normalized = item.str.replace(/[,$()\s]/g, '')
+  if (!/^20\d{2}$/.test(normalized)) return false
+  const value = Number(normalized)
+  return value >= 1900 && value <= 2100
 }
 
 function bestColumnValue(items: PositionedTextItem[], x: number) {
@@ -405,6 +460,7 @@ function extractFieldsFromColumnLayout(
       (item) =>
         item.x >= currentAssetsStartX &&
         item.x < currentAssetsEndX &&
+        !isYearHeaderItem(item) &&
         ![...labeledColumns].some((x) => Math.abs(x - item.x) <= X_TOLERANCE),
     )
     .map((item) => ({
@@ -433,6 +489,7 @@ function extractFieldsFromColumnLayout(
       (item) =>
         item.x >= currentLiabilitiesStartX &&
         item.x < currentLiabilitiesEndX &&
+        !isYearHeaderItem(item) &&
         ![...labeledColumns].some((x) => Math.abs(x - item.x) <= X_TOLERANCE),
     )
     .map((item) => ({
@@ -460,7 +517,7 @@ function extractFieldsFromColumnLayout(
 }
 
 function currentSectionFieldMatch(pageNumber: number, line: string): FieldMatch | null {
-  const value = extractNumbers(line)[0]
+  const value = primaryStatementValue(line)
   if (value === undefined) return null
 
   const normalized = normalizeLine(line)
@@ -498,11 +555,19 @@ function currentSectionFieldMatch(pageNumber: number, line: string): FieldMatch 
     return buildFieldMatch('marketable_securities', line, value, pageNumber, line, 90)
   }
 
-  if (/accounts receivable/.test(normalized)) {
+  if (/accounts? receivable/.test(normalized)) {
     return buildFieldMatch('accounts_receivable', line, value, pageNumber, line, 110)
   }
 
-  if (/other receivable/.test(normalized)) {
+  if (/amounts? receivable/.test(normalized)) {
+    return buildFieldMatch('accounts_receivable', line, value, pageNumber, line, 105)
+  }
+
+  if (/donations? receivable/.test(normalized)) {
+    return buildFieldMatch('accounts_receivable', line, value, pageNumber, line, 102)
+  }
+
+  if (/other receivables?/.test(normalized)) {
     return buildFieldMatch('accounts_receivable', line, value, pageNumber, line, 100)
   }
 
@@ -531,7 +596,7 @@ function generalFieldMatch(
   line: string,
   pageScore: number,
 ): FieldMatch | null {
-  const value = extractNumbers(line)[0]
+  const value = primaryStatementValue(line)
   if (value === undefined) return null
 
   const normalized = normalizeLine(line)
@@ -566,10 +631,16 @@ function generalFieldMatch(
       }
       return null
     case 'accounts_receivable':
-      if (/accounts receivable/.test(normalized)) {
+      if (/accounts? receivable/.test(normalized)) {
         return buildFieldMatch(fieldKey, line, value, pageNumber, line, 100 + bonus)
       }
-      if (/other receivable/.test(normalized)) {
+      if (/amounts? receivable/.test(normalized)) {
+        return buildFieldMatch(fieldKey, line, value, pageNumber, line, 95 + bonus)
+      }
+      if (/donations? receivable/.test(normalized)) {
+        return buildFieldMatch(fieldKey, line, value, pageNumber, line, 92 + bonus)
+      }
+      if (/other receivables?/.test(normalized)) {
         return buildFieldMatch(fieldKey, line, value, pageNumber, line, 90 + bonus)
       }
       if (/grants? receivable/.test(normalized)) {
@@ -645,13 +716,13 @@ function extractStatementPageFields(
       continue
     }
 
-    if (matchesAnyPattern(normalized, ASSET_SECTION_PATTERNS)) {
+    if (hasAssetSectionLine(normalized)) {
       applyImpliedSectionTotals('assets')
       section = 'assets'
       continue
     }
 
-    if (matchesAnyPattern(normalized, LIABILITY_SECTION_PATTERNS)) {
+    if (hasLiabilitySectionLine(normalized)) {
       applyImpliedSectionTotals('liabilities')
       section = 'liabilities'
       continue
@@ -676,7 +747,7 @@ function extractStatementPageFields(
 
     if (section === 'current_assets') {
       if (matchesAnyPattern(normalized, CURRENT_ASSET_TOTAL_PATTERNS)) {
-        const value = extractNumbers(line)[0]
+        const value = primaryStatementValue(line)
         if (value !== undefined) {
           matches.total_current_assets = buildFieldMatch(
             'total_current_assets',
@@ -692,7 +763,7 @@ function extractStatementPageFields(
       }
 
       if (isNumericOnlyLine(line)) {
-        const value = extractNumbers(line)[0]
+        const value = primaryStatementValue(line)
         if (value !== undefined) {
           matches.total_current_assets = buildFieldMatch(
             'total_current_assets',
@@ -708,17 +779,17 @@ function extractStatementPageFields(
       }
 
       const candidate = currentSectionFieldMatch(page.pageNumber, line)
-      const value = extractNumbers(line)[0]
+      const value = primaryStatementValue(line)
       if (value !== undefined) currentAssetValues.push(value)
       if (!candidate) continue
 
-      matches[candidate.fieldKey] = chooseBetterFieldMatch(matches[candidate.fieldKey], candidate)
+      matches[candidate.fieldKey] = combineSummableFieldMatch(matches[candidate.fieldKey], candidate)
       continue
     }
 
     if (section === 'current_liabilities') {
       if (matchesAnyPattern(normalized, CURRENT_LIABILITY_TOTAL_PATTERNS)) {
-        const value = extractNumbers(line)[0]
+        const value = primaryStatementValue(line)
         if (value !== undefined) {
           matches.total_current_liabilities = buildFieldMatch(
             'total_current_liabilities',
@@ -734,7 +805,7 @@ function extractStatementPageFields(
       }
 
       if (isNumericOnlyLine(line)) {
-        const value = extractNumbers(line)[0]
+        const value = primaryStatementValue(line)
         if (value !== undefined) {
           matches.total_current_liabilities = buildFieldMatch(
             'total_current_liabilities',
@@ -748,7 +819,7 @@ function extractStatementPageFields(
         section = 'liabilities'
       }
 
-      const value = extractNumbers(line)[0]
+      const value = primaryStatementValue(line)
       if (value !== undefined) currentLiabilityValues.push(value)
     }
   }
@@ -780,9 +851,13 @@ export function extractFieldsFromTextPages(
   if (statementCandidatePages.length === 0) return {}
 
   const matches: Partial<Record<LiquidityFieldKey, FieldMatch>> = {}
-  const bestStatementPage = statementCandidatePages[0]
-
-  Object.assign(matches, extractStatementPageFields(bestStatementPage.page))
+  for (const { page } of statementCandidatePages) {
+    const pageMatches = extractStatementPageFields(page)
+    for (const [fieldKey, match] of Object.entries(pageMatches) as Array<[LiquidityFieldKey, FieldMatch | undefined]>) {
+      if (!match) continue
+      matches[fieldKey] = chooseBetterFieldMatch(matches[fieldKey], match)
+    }
+  }
 
   const searchableFieldKeys: LiquidityFieldKey[] = [
     'cash_and_cash_equivalents',

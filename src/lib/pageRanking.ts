@@ -58,15 +58,28 @@ function isStatementTitleLine(line: string) {
   )
 }
 
+function isTrailingAssetsSectionLabel(line: string) {
+  return /(?:^|\s)assets:?$/.test(line) && !/\bnet assets?:?$/.test(line)
+}
+
+function isTrailingLiabilitiesSectionLabel(line: string) {
+  return /(?:^|\s)liabilities:?$/.test(line)
+}
+
 function hasAssetSectionLine(line: string) {
   const normalized = normalizeLine(line)
-  return matchesAnyPattern(normalized, ASSET_SECTION_PATTERNS) || /\bassets?\b.*\bcurrent assets?\b/.test(normalized)
+  return (
+    matchesAnyPattern(normalized, ASSET_SECTION_PATTERNS) ||
+    isTrailingAssetsSectionLabel(normalized) ||
+    /\bassets?\b.*\bcurrent assets?\b/.test(normalized)
+  )
 }
 
 function hasLiabilitySectionLine(line: string) {
   const normalized = normalizeLine(line)
   return (
     matchesAnyPattern(normalized, LIABILITY_SECTION_PATTERNS) ||
+    isTrailingLiabilitiesSectionLabel(normalized) ||
     /\bliabilities\b.*\bcurrent liabilities\b/.test(normalized)
   )
 }

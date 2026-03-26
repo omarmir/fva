@@ -24,7 +24,17 @@ const FIELD_MATCHERS: Array<{
       /\bgics?\b/i,
     ],
   },
-  { key: 'accounts_receivable', patterns: [/accounts receivable/i, /trade receivables?/i, /grants? receivable/i] },
+  {
+    key: 'accounts_receivable',
+    patterns: [
+      /accounts? receivable/i,
+      /trade receivables?/i,
+      /amounts? receivable/i,
+      /other receivables?/i,
+      /donations? receivable/i,
+      /grants? receivable/i,
+    ],
+  },
   { key: 'inventory', patterns: [/inventor/i, /materials? and supplies/i] },
   { key: 'total_current_assets', patterns: [/total current assets?/i, /current assets? total/i] },
   { key: 'total_current_liabilities', patterns: [/total current liabilities?/i, /current liabilities? total/i] },
@@ -78,6 +88,8 @@ function normalizeParsedFieldKey(key: string | null | undefined): LiquidityField
     case 'accounts_receivable':
     case 'receivables':
     case 'other_receivables':
+    case 'amounts_receivable':
+    case 'donations_receivable':
       return 'accounts_receivable'
     case 'inventory':
     case 'inventories':

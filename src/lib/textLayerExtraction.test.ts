@@ -136,6 +136,34 @@ describe('reconcileExtractionWithTextPages', () => {
     expect(matches.total_current_liabilities?.value).toBe(100)
   })
 
+  it('combines asset and liability sections across separate statement pages', () => {
+    const matches = extractFieldsFromTextPages([
+      buildPage(5, [
+        'Statement of Financial Position',
+        'As Assets',
+        'Current',
+        'Cash 552,628 853,814',
+        'Accounts receivable 23,225 98,917',
+        'Term deposits (Note 3) 221,266 214,432',
+        '815,080 1,185,349',
+      ]),
+      buildPage(6, [
+        'Statement of Financial Position',
+        'Liabilities',
+        'Current',
+        'Accounts payable and accruals 140,587 132,766',
+        'Deferred revenue 123,567 280,270',
+        '264,154 413,036',
+      ]),
+    ])
+
+    expect(matches.cash_and_cash_equivalents?.value).toBe(552628)
+    expect(matches.accounts_receivable?.value).toBe(23225)
+    expect(matches.marketable_securities?.value).toBe(221266)
+    expect(matches.total_current_assets?.value).toBe(815080)
+    expect(matches.total_current_liabilities?.value).toBe(264154)
+  })
+
   it('treats guaranteed investment certificates as marketable securities when they are current', () => {
     const matches = extractFieldsFromTextPages([
       buildPage(9, [
@@ -143,7 +171,7 @@ describe('reconcileExtractionWithTextPages', () => {
         'Assets',
         'Current',
         'Cash - unrestricted 120',
-        'Guaranteed investment certificate - due January 25, 2025 50',
+        'Guaranteed investment certificate - due January 25, 2025 50 45',
         'Accounts receivable 30',
         '200',
         'Liabilities and Fund Balances',
@@ -332,5 +360,92 @@ describe('reconcileExtractionWithTextPages', () => {
     expect(matches.accounts_receivable?.value).toBe(4301)
     expect(matches.total_current_assets?.value).toBe(258092)
     expect(matches.total_current_liabilities?.value).toBe(12461)
+  })
+
+  it('uses the current-year total column instead of note numbers or leftmost fund columns', () => {
+    const matches = extractFieldsFromTextPages([
+      buildPage(4, [
+        'Statement of Financial Position',
+        'Assets',
+        'Current assets',
+        'Cash and cash equivalents 3 211,182 277,945',
+        'Accounts receivable 4 7,241,551 7,667,001',
+        '20,816,420 0 0 20,816,420 18,813,895',
+        'Liabilities and Net Assets',
+        'Current liabilities',
+        '5,952 4,773',
+      ]),
+    ])
+
+    expect(matches.cash_and_cash_equivalents?.value).toBe(211182)
+    expect(matches.accounts_receivable?.value).toBe(7241551)
+    expect(matches.total_current_assets?.value).toBe(20816420)
+    expect(matches.total_current_liabilities?.value).toBe(5952)
+  })
+
+  it('sums multiple current cash and investment rows while recognizing broader receivable labels', () => {
+    const matches = extractFieldsFromTextPages([
+      buildPage(3, [
+        'Statement of Financial Position',
+        'Assets',
+        'Current',
+        'Cash - unrestricted 951,009 2,381,408',
+        'Cash - restricted 6,603,002 -',
+        'Cash - to fund deferred income - general operations 415,240 207,746',
+        'Investments - unrestricted (note 2) - 54,325',
+        'Investments - restricted net assets (note 2) 12,438,874 15,041,876',
+        'Donations receivable 74,738 39,819',
+        '20,999,214 18,389,503',
+        'Liabilities',
+        'Current',
+        'Accounts payable 382,571 411,670',
+        'Deferred income - general operations 415,240 207,746',
+        '797,811 619,416',
+      ]),
+    ])
+
+    expect(matches.cash_and_cash_equivalents?.value).toBe(7969251)
+    expect(matches.marketable_securities?.value).toBe(12438874)
+    expect(matches.accounts_receivable?.value).toBe(74738)
+    expect(matches.total_current_assets?.value).toBe(20999214)
+    expect(matches.total_current_liabilities?.value).toBe(797811)
+  })
+
+  it('does not let year headers override implied liability totals from statement rows', () => {
+    const matches = extractFieldsFromTextPages([
+      buildPage(
+        4,
+        [
+          'Non-consolidated Statement of Financial Position',
+          'Assets',
+          'Current assets',
+          'Cash $ 2,167,067 $ 6,735,135',
+          'Investments (Note 5) 3,083,151 2,778,963',
+          'Accounts receivable (Note 8) 356,138 561,716',
+          '5,997,637 10,287,518',
+          'Liabilities and Accumulated Surplus',
+          'Current liabilities',
+          'Accounts payable and accrued liabilities $ 1,096,327 $ 419,986',
+          'Deferred contributions (Note 6) 1,750,482 7,202,009',
+          '2,846,809 7,621,995',
+        ],
+        [
+          { str: 'Current assets', x: 20, y: 100 },
+          { str: 'Current liabilities', x: 120, y: 100 },
+          { str: 'Cash', x: 20, y: 112 },
+          { str: 'Investments', x: 32, y: 112 },
+          { str: 'Accounts payable', x: 120, y: 112 },
+          { str: 'Deferred contributions', x: 132, y: 112 },
+          { str: '2025', x: 146, y: 200 },
+          { str: '2,167,067', x: 20, y: 190 },
+          { str: '3,083,151', x: 32, y: 190 },
+          { str: '1,096,327', x: 120, y: 190 },
+          { str: '2,846,809', x: 132, y: 188 },
+        ],
+      ),
+    ])
+
+    expect(matches.total_current_assets?.value).toBe(5997637)
+    expect(matches.total_current_liabilities?.value).toBe(2846809)
   })
 })

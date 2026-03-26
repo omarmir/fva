@@ -175,4 +175,27 @@ describe('normalizeModelContent', () => {
 
     expect(result.fields.find((field) => field.key === 'marketable_securities')?.value).toBe(500000)
   })
+
+  it('matches broader receivable labels from nonprofit statements', () => {
+    const result = normalizeModelContent(
+      `<table>
+        <tr><td>Statement of Financial Position</td><td>As at December 31, 2024</td></tr>
+        <tr><td>Donations receivable</td><td>74,738</td></tr>
+        <tr><td>Amounts receivable</td><td>31,249</td></tr>
+      </table>`,
+      {
+        modelId: 'vision-html-model',
+        source: {
+          kind: 'upload',
+          fileName: 'receivables.pdf',
+          fileSize: 1,
+          lastModified: 1,
+        },
+        fallbackPageNumber: 3,
+        sampleMetadata: null,
+      },
+    )
+
+    expect(result.fields.find((field) => field.key === 'accounts_receivable')?.value).toBe(74738)
+  })
 })
