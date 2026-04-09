@@ -5,7 +5,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   server: {
-    allowedHosts: ['vite.613868.xyz'],
+    allowedHosts: ['vite.613868.xyz', '5173.613868.xyz'],
     proxy: {
       '/api/vllm': {
         target: process.env.VLLM_PROXY_TARGET ?? 'http://vllm.613868.xyz',
